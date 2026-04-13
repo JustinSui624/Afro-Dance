@@ -1,4 +1,4 @@
-import SLoader.py as JSONSkeletonViewer
+import SLoader as JSONSkeletonViewer
 def main():
     json_path = "data/references/instructor_reference.json"
     
