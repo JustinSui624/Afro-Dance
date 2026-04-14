@@ -1,29 +1,29 @@
-import SLoader as JSONSkeletonViewer
+from pathlib import Path
+from SLoader import JSONSkeletonViewer
+
+
 def main():
-    json_path = "data/references/instructor_reference.json"
-    
-    # Check if file exists
-    import os
-    if not os.path.exists(json_path):
+    repo_root = Path(__file__).resolve().parent
+    json_path = repo_root / "data" / "references" / "instructor_reference.json"
+
+    if not json_path.exists():
         print(f"Error: {json_path} not found!")
-        print("Please run extract_reference.py first")
+        print("Run: python extract_reference.py")
         return
-    
-    # Create viewer
-    viewer = JSONSkeletonViewer(json_path)
-    
+
+    viewer = JSONSkeletonViewer(str(json_path))
+
     print("=== JSON Skeleton Viewer ===")
     print(f"Total frames: {len(viewer.loader.ref_norm_xy)}")
     print(f"Segments: {len(viewer.loader.segments)}")
     print(f"FPS: {viewer.loader.fps}")
     print("\nControls:")
     print("  SPACE - Play/Pause")
-    print("  ←/→   - Previous/Next frame")
-    print("  Q     - Toggle quality display")
+    print("  LEFT/RIGHT ARROW - Previous/Next frame")
+    print("  T     - Toggle quality display")
     print("  Q     - Quit")
     print("-" * 30)
-    
-    # Run viewer
+
     viewer.run()
 
 
