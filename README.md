@@ -100,7 +100,7 @@ pose_utils.py
 AfroDanceLearnPose/
 ```
  
-Also verify that the `data` folder exists. If `data/` or `data/references/` are missing, create them manually:
+Also verify that the `data` folder exists. If this folder does exist, then continue onto the next step. If `data/` or `data/references/` are missing, create them manually with these commands:
  
 ```powershell
 mkdir data
@@ -111,8 +111,8 @@ mkdir data\references
  
 The project expects an instructor dance video at `data/instructor.mp4`.
  
-**Option A — Use the included prototype video (recommended):**
-When the dashboard opens, click **Use Included Prototype Video**.
+**Option A — Use the included prototype videos (this would be the recommended option):**
+When the dashboard opens, click **Use Included Prototype Video**. Continue onto step 7 for this option
  
 **Option B — Add your own video:**
 Place your video at `data/instructor.mp4`. For best results, use a video that is:
@@ -130,10 +130,10 @@ After running the command:
 ```powershell
 python ui_prototype.py
 ```
-The user interface then appears to navigate across the application.
+The user interface appears on the screen and user now can navigate across the application.
 To get a dance started, click **Generate Reference Data**.
  
-This creates: `data/references/instructor_reference.json`
+This creates: `data/references/instructor_reference.json` to allow the program to gather the data from either (Option A, the included dances) or (Option B, the added videos from the user).
  
 **Normal workflow:**
 1. Select Instructor Video or Use Included Prototype Video
@@ -182,6 +182,7 @@ This creates: `data/references/instructor_reference.json`
 Uses technical color-based visual comparison to show overlap quality.
  
 ---
+
  
 ## Notes
  
@@ -191,6 +192,43 @@ Uses technical color-based visual comparison to show overlap quality.
 - Python 3.12 is recommended — project dependencies were tested with this version.
  
 ---
+
+## All Commands Ran In Termainal
+
+These are all the commands as a whole that should be ran when start the project;
+
+
+```
+git clone https://github.com/JustinSui624/Afro-Dance.git
+cd Afro-Dance
+py -3.12 -m venv .venv
+.venv\Scripts\activate
+pip install -r requirements.txt
+python ui_prototype.py
+```
+
+---
+
+## Troubleshooting
+
+### If dependencies fail
+
+- Ensure Python 3.12 is installed.
+
+If live training fails
+
+Make sure:
+
+- webcam is connected
+- data/instructor.mp4 exists
+- reference JSON has been generated
+
+If reference generation fails
+
+Ensure:
+
+- video exists in data/
+- data/references/ folder exists
  
 ## Summary
  
