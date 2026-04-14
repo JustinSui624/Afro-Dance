@@ -1,5 +1,31 @@
-# Default ignored files
-/shelf/
-/workspace.xml
-# Editor-based HTTP Client requests
-/httpRequests/
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# IDE / editor
+.vscode/
+.idea/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Local backups / scratch files
+*_backup.py
+
+# Generated or local-only files
+dance_motion.json
+
+# Uncomment these if your team does NOT want sample/generated data in the repo
+# data/instructor.mp4
+# data/references/instructor_reference.json
