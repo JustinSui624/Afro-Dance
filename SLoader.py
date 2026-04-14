@@ -279,7 +279,7 @@ class JSONSkeletonViewer:
                            (bar_x + 300, bar_y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
             
             # Draw controls
-            controls = "SPACE: Play/Pause | ← →: Previous/Next Frame | Q: Quit | Q: Toggle Quality"
+            controls = "SPACE: Play/Pause | LEFT/RIGHT ARROW: Previous/Next Frame | T: Toggle Quality | Q: Quit"
             cv2.putText(frame, controls, (50, canvas_height - 100),
                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, (200, 200, 200), 1)
             
@@ -290,18 +290,18 @@ class JSONSkeletonViewer:
             cv2.imshow("JSON Skeleton Viewer", frame)
             
             # Handle keyboard input
-            key = cv2.waitKey(30 if self.playing else 100) & 0xFF
+            key = cv2.waitKeyEx(30 if self.playing else 100)
             
-            if key == ord('q'):
+            if key in (ord('q'), ord('Q')):
                 break
             elif key == ord(' '):
                 self.playing = not self.playing
-            elif key == ord('q'):
+            elif key in (ord('t'), ord('T')):
                 self.show_quality = not self.show_quality
-            elif key == 81:  # Left arrow
+            elif key in (2424832, 81):  # Left arrow
                 self.current_frame = max(0, self.current_frame - 1)
                 self.playing = False
-            elif key == 83:  # Right arrow
+            elif key in (2555904, 83):  # Right arrow
                 self.current_frame = min(len(self.loader.ref_norm_xy) - 1, self.current_frame + 1)
                 self.playing = False
         
