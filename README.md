@@ -211,6 +211,12 @@ python ui_prototype.py
 
 ## Troubleshooting
 
+### Extracting files/Downloading
+
+When downloading the project as a zip:
+- Make sure you open the folder that actually contains `README.md`, `requirements.txt`, and `ui_prototype.py` before running commands. Some ZIP extractions may create a nested folder.
+- To ensure these files can be seen, type "dir" in the termial after opening the path for this project, then the `README.md`, `requirements.txt`, and `ui_prototype.py` files can been seen ensuring you are in the correct folder
+
 ### If dependencies fail
 
 - Ensure Python 3.12 is installed.
