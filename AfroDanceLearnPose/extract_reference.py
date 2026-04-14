@@ -1,13 +1,24 @@
 import json
-import os
+from pathlib import Path
+
 import cv2
 import numpy as np
 import mediapipe as mp
 
-from pose_utils import (
-    landmarks_to_xy, normalize_xy, compute_key_angles,
-    angles_to_vector
-)
+try:
+    from .pose_utils import (
+        landmarks_to_xy,
+        normalize_xy,
+        compute_key_angles,
+        angles_to_vector,
+    )
+except ImportError:
+    from pose_utils import (
+        landmarks_to_xy,
+        normalize_xy,
+        compute_key_angles,
+        angles_to_vector,
+    )
 
 mp_pose = mp.solutions.pose
 MP_LM = mp_pose.PoseLandmark
@@ -24,7 +35,7 @@ ANGLE_NAMES = [
 def smooth_1d(x, win=11):
     if len(x) < win:
         return x
-    win = max(3, int(win) | 1)  # odd
+    win = max(3, int(win) | 1)
     pad = win // 2
     xp = np.pad(x, (pad, pad), mode="edge")
     k = np.ones(win, dtype=np.float32) / win
@@ -32,30 +43,19 @@ def smooth_1d(x, win=11):
 
 
 def detect_step_boundaries(motion, fps, min_step_sec=1.0, max_steps=12):
-    """
-    motion: (T,) motion energy
-    Returns: list of boundary frame indices including 0 and T-1
-    """
-    T = len(motion)
-    if T < 5:
-        return [0, T - 1]
+    t = len(motion)
+    if t < 5:
+        return [0, t - 1]
 
-    # Smooth
     m = smooth_1d(motion, win=int(max(5, fps * 0.25)) | 1)
-
-    # Normalize
     m = (m - m.min()) / (m.max() - m.min() + 1e-6)
 
-    # Simple peak picking: choose candidate boundaries where motion dips (rest points)
-    # We'll invert and find peaks in (1 - m)
     inv = 1.0 - m
-    # candidate indices where inv is locally maximal
     candidates = []
-    for i in range(1, T - 1):
+    for i in range(1, t - 1):
         if inv[i] > inv[i - 1] and inv[i] > inv[i + 1] and inv[i] > 0.55:
             candidates.append(i)
 
-    # Enforce minimum step length
     min_gap = int(max(1, fps * min_step_sec))
     boundaries = [0]
     last = 0
@@ -64,21 +64,19 @@ def detect_step_boundaries(motion, fps, min_step_sec=1.0, max_steps=12):
             boundaries.append(idx)
             last = idx
 
-    boundaries.append(T - 1)
+    boundaries.append(t - 1)
 
-    # If too many, keep the strongest dips (highest inv)
     if len(boundaries) - 1 > max_steps:
         inner = boundaries[1:-1]
         inner_sorted = sorted(inner, key=lambda i: inv[i], reverse=True)
         inner_keep = sorted(inner_sorted[: max_steps - 1])
-        boundaries = [0] + inner_keep + [T - 1]
+        boundaries = [0] + inner_keep + [t - 1]
 
-    # Ensure strictly increasing + unique
     boundaries = sorted(set(boundaries))
     if boundaries[0] != 0:
         boundaries = [0] + boundaries
-    if boundaries[-1] != T - 1:
-        boundaries.append(T - 1)
+    if boundaries[-1] != t - 1:
+        boundaries.append(t - 1)
 
     return boundaries
 
@@ -94,12 +92,28 @@ def boundaries_to_segments(boundaries):
     return segs
 
 
-def main():
-    video_path = os.path.join("data", "instructor.mp4")
-    out_dir = os.path.join("data", "references")
-    os.makedirs(out_dir, exist_ok=True)
+def resolve_repo_root():
+    return Path(__file__).resolve().parents[1]
 
-    cap = cv2.VideoCapture(video_path)
+
+def resolve_video_path(repo_root: Path) -> Path:
+    candidates = [
+        repo_root / "data" / "instructor.mp4",
+        repo_root / "AfroDanceLearnPose" / "data" / "instructor.mp4",
+    ]
+    for path in candidates:
+        if path.exists():
+            return path
+    return repo_root / "data" / "instructor.mp4"
+
+
+def main():
+    repo_root = resolve_repo_root()
+    video_path = resolve_video_path(repo_root)
+    out_dir = repo_root / "data" / "references"
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    cap = cv2.VideoCapture(str(video_path))
     if not cap.isOpened():
         raise RuntimeError(f"Could not open video: {video_path}")
 
@@ -163,7 +177,6 @@ def main():
             ]
             ref_vis.append(float(np.mean(vis[key_idxs])))
 
-            # motion energy (pose change)
             if prev_norm is None:
                 motion_energy.append(0.0)
             else:
@@ -179,15 +192,14 @@ def main():
     pose.close()
 
     motion_energy = np.array(motion_energy, dtype=np.float32)
-
     boundaries = detect_step_boundaries(motion_energy, fps=fps, min_step_sec=1.2, max_steps=10)
     segments = boundaries_to_segments(boundaries)
 
-    out_path = os.path.join(out_dir, "instructor_reference.json")
+    out_path = out_dir / "instructor_reference.json"
     with open(out_path, "w", encoding="utf-8") as f:
         json.dump(
             {
-                "video_path": video_path,
+                "video_path": str(video_path),
                 "fps": float(fps),
                 "angle_names": ANGLE_NAMES,
                 "vectors": ref_vectors,
@@ -195,9 +207,9 @@ def main():
                 "num_frames": len(ref_vectors),
                 "ref_norm_xy": ref_norm_xy,
                 "motion_energy": motion_energy.tolist(),
-                "segments": segments,  # NEW
+                "segments": segments,
             },
-            f
+            f,
         )
 
     print(f"\nSaved reference to: {out_path}")
