@@ -5,23 +5,37 @@ import tkinter as tk
 from pathlib import Path
 from tkinter import filedialog, messagebox
 
+from dance_library import (
+    copy_into_selected_dance,
+    copy_prototype_to_selected,
+    ensure_library_structure,
+    get_selected_dance,
+    list_dances,
+    prepare_selected_dance_for_extraction,
+    save_selected_dance,
+    store_generated_reference_for_selected,
+)
+
 
 class AfroDanceApp:
     def __init__(self, root):
         self.root = root
         self.root.title("AfroDance Learn")
-        self.root.geometry("1380x860")
-        self.root.minsize(1200, 760)
+        self.root.geometry("1420x900")
+        self.root.minsize(1220, 780)
         self.root.configure(bg="#efe6d6")
 
         self.repo_root = Path(__file__).resolve().parent
         self.data_dir = self.repo_root / "data"
         self.references_dir = self.data_dir / "references"
-        self.reference_json = self.references_dir / "instructor_reference.json"
         self.root_video = self.data_dir / "instructor.mp4"
-        self.prototype_video = self.repo_root / "AfroDanceLearnPose" / "data" / "instructor.mp4"
+        self.generated_reference = self.references_dir / "instructor_reference.json"
+
+        ensure_library_structure(self.repo_root)
 
         self.process_running = False
+        self.dance_var = tk.StringVar()
+        self.dance_name_to_id = {}
 
         self.build_ui()
         self.refresh_status(log_message=False)
@@ -41,7 +55,6 @@ class AfroDanceApp:
 
         self.build_left_sidebar(content)
         self.build_main_panels(content)
-
         self.build_footer()
 
     def build_header(self):
@@ -57,15 +70,15 @@ class AfroDanceApp:
             text="AfroDance Learn",
             font=("Arial", 24, "bold"),
             bg="#4f2f21",
-            fg="#f8ebd3"
+            fg="#f8ebd3",
         ).pack(anchor="w")
 
         tk.Label(
             title_frame,
-            text="Integrated Training Dashboard",
+            text="Dance Library + Live Training Dashboard",
             font=("Arial", 12),
             bg="#4f2f21",
-            fg="#ead7b6"
+            fg="#ead7b6",
         ).pack(anchor="w", pady=(2, 0))
 
         self.header_status = tk.Frame(header, bg="#4f2f21")
@@ -88,101 +101,111 @@ class AfroDanceApp:
             bg="#ead7b6",
             fg="#3a251a",
             padx=10,
-            pady=6
+            pady=6,
         )
 
     def build_left_sidebar(self, parent):
-        sidebar = tk.Frame(parent, bg="#2f1f17", width=340, bd=2, relief="ridge")
+        sidebar = tk.Frame(parent, bg="#2f1f17", width=360, bd=2, relief="ridge")
         sidebar.grid(row=0, column=0, rowspan=2, sticky="ns", padx=(0, 18))
         sidebar.grid_propagate(False)
 
         tk.Label(
             sidebar,
-            text="Main Workflow",
+            text="Dance Library",
             font=("Arial", 18, "bold"),
             bg="#2f1f17",
-            fg="#f6e6ca"
+            fg="#f6e6ca",
         ).pack(anchor="w", padx=18, pady=(18, 8))
 
         tk.Label(
             sidebar,
             text=(
-                "Use these steps in order:\n"
-                "1. Choose an instructor video\n"
-                "2. Generate the reference data\n"
-                "3. Start live dance training"
+                "Select a dance included in the project, generate or refresh its reference data, "
+                "and use that dance in Live Training, Detailed Analysis Mode, and the Reference Pose Viewer."
             ),
-            font=("Arial", 11),
+            font=("Arial", 10),
             justify="left",
             bg="#2f1f17",
             fg="#dbc6a8",
-            wraplength=290
-        ).pack(anchor="w", padx=18, pady=(0, 14))
-
-        self.main_action_frame = tk.Frame(sidebar, bg="#2f1f17")
-        self.main_action_frame.pack(fill="x", padx=18)
-
-        self.btn_select_video = self.make_big_button(
-            self.main_action_frame,
-            "Select Instructor Video",
-            "#1f6aa5",
-            self.select_instructor_video
-        )
-        self.btn_select_video.pack(fill="x", pady=6)
-
-        self.btn_copy_default = self.make_big_button(
-            self.main_action_frame,
-            "Use Included Prototype Video",
-            "#6f42c1",
-            self.copy_default_video
-        )
-        self.btn_copy_default.pack(fill="x", pady=6)
-
-        self.btn_generate_reference = self.make_big_button(
-            self.main_action_frame,
-            "Generate Reference Data",
-            "#2f9e44",
-            lambda: self.run_script("extract_reference.py", "Reference generation")
-        )
-        self.btn_generate_reference.pack(fill="x", pady=6)
-
-        self.btn_live_training = self.make_big_button(
-            self.main_action_frame,
-            "Start Live Training",
-            "#198754",
-            lambda: self.run_script("live_score.py", "Live training")
-        )
-        self.btn_live_training.pack(fill="x", pady=6)
+            wraplength=310,
+        ).pack(anchor="w", padx=18, pady=(0, 12))
 
         tk.Label(
             sidebar,
-            text="Current Main Video",
+            text="Selected Dance",
             font=("Arial", 13, "bold"),
             bg="#2f1f17",
-            fg="#f6e6ca"
-        ).pack(anchor="w", padx=18, pady=(18, 6))
+            fg="#f6e6ca",
+        ).pack(anchor="w", padx=18, pady=(8, 4))
 
-        self.video_info_label = tk.Label(
+        self.dance_menu = tk.OptionMenu(sidebar, self.dance_var, "")
+        self.dance_menu.config(font=("Arial", 11), bg="#ead7b6", fg="#2f1f17", width=28)
+        self.dance_menu.pack(fill="x", padx=18, pady=(0, 10))
+
+        self.dance_meta_label = tk.Label(
             sidebar,
-            text="No root instructor video selected yet.",
+            text="No dances found in data/dances.",
             font=("Arial", 10),
             justify="left",
             bg="#3a2920",
             fg="#ebdcc3",
-            wraplength=290,
+            wraplength=310,
             anchor="w",
             padx=10,
             pady=10,
-            relief="sunken"
+            relief="sunken",
         )
-        self.video_info_label.pack(fill="x", padx=18)
+        self.dance_meta_label.pack(fill="x", padx=18)
+
+        tk.Label(
+            sidebar,
+            text="Selected Dance Actions",
+            font=("Arial", 13, "bold"),
+            bg="#2f1f17",
+            fg="#f6e6ca",
+        ).pack(anchor="w", padx=18, pady=(18, 6))
+
+        action_frame = tk.Frame(sidebar, bg="#2f1f17")
+        action_frame.pack(fill="x", padx=18)
+
+        self.btn_import_video = self.make_big_button(
+            action_frame,
+            "Import Video to Selected Dance",
+            "#1f6aa5",
+            self.import_video_to_selected_dance,
+        )
+        self.btn_import_video.pack(fill="x", pady=6)
+
+        self.btn_copy_prototype = self.make_big_button(
+            action_frame,
+            "Use Included Prototype for Selected Dance",
+            "#6f42c1",
+            self.copy_prototype_to_selected_dance,
+        )
+        self.btn_copy_prototype.pack(fill="x", pady=6)
+
+        self.btn_generate_reference = self.make_big_button(
+            action_frame,
+            "Generate Reference for Selected Dance",
+            "#2f9e44",
+            self.generate_reference_for_selected_dance,
+        )
+        self.btn_generate_reference.pack(fill="x", pady=6)
+
+        self.btn_live_training = self.make_big_button(
+            action_frame,
+            "Start Live Training",
+            "#198754",
+            lambda: self.run_script("live_score.py", "Live training"),
+        )
+        self.btn_live_training.pack(fill="x", pady=6)
 
         tk.Label(
             sidebar,
             text="Project State",
             font=("Arial", 13, "bold"),
             bg="#2f1f17",
-            fg="#f6e6ca"
+            fg="#f6e6ca",
         ).pack(anchor="w", padx=18, pady=(18, 6))
 
         self.project_state_label = tk.Label(
@@ -192,7 +215,7 @@ class AfroDanceApp:
             bg="#b08968",
             fg="#1f130d",
             padx=10,
-            pady=8
+            pady=8,
         )
         self.project_state_label.pack(fill="x", padx=18)
 
@@ -206,7 +229,7 @@ class AfroDanceApp:
         self.advanced_panel = self.create_panel(parent, "Advanced Tools", 1, 1)
         self.build_advanced_panel(self.advanced_panel)
 
-        self.files_panel = self.create_panel(parent, "Project Files & Readiness", 1, 2)
+        self.files_panel = self.create_panel(parent, "Dance Library Status", 1, 2)
         self.build_files_panel(self.files_panel)
 
     def create_panel(self, parent, title, row, column):
@@ -220,7 +243,7 @@ class AfroDanceApp:
             text=title,
             font=("Arial", 17, "bold"),
             bg="#6a4330",
-            fg="#f6e6ca"
+            fg="#f6e6ca",
         ).pack(anchor="w", padx=14, pady=(12, 8))
 
         inner = tk.Frame(panel, bg="#6a4330")
@@ -229,12 +252,26 @@ class AfroDanceApp:
 
     def build_workflow_panel(self, parent):
         rows = [
-            ("Step 1", "Select an instructor video",
-             "Choose your own video or use the included prototype video."),
-            ("Step 2", "Generate reference data",
-             "Extract pose frames and create the reference JSON used by training."),
-            ("Step 3", "Start live training",
-             "Open the webcam-based training mode with the instructor overlay and scoring."),
+            (
+                "Step 1",
+                "Select a dance from the library",
+                "Choose one of the included dance options in the left panel.",
+            ),
+            (
+                "Step 2",
+                "Import or update the dance video",
+                "You can copy the included prototype into the selected dance folder or import your own video.",
+            ),
+            (
+                "Step 3",
+                "Generate the selected dance reference",
+                "This creates the selected dance's reference.json file.",
+            ),
+            (
+                "Step 4",
+                "Run training or analysis",
+                "Start Live Training, Detailed Analysis Mode, or Reference Pose Viewer using the selected dance.",
+            ),
         ]
 
         for step, title, desc in rows:
@@ -242,18 +279,29 @@ class AfroDanceApp:
             card.pack(fill="x", pady=8)
 
             tk.Label(
-                card, text=step, font=("Arial", 10, "bold"),
-                bg="#f3e7d5", fg="#7a4d35"
+                card,
+                text=step,
+                font=("Arial", 10, "bold"),
+                bg="#f3e7d5",
+                fg="#7a4d35",
             ).pack(anchor="w", padx=12, pady=(10, 2))
 
             tk.Label(
-                card, text=title, font=("Arial", 13, "bold"),
-                bg="#f3e7d5", fg="#2f1f17"
+                card,
+                text=title,
+                font=("Arial", 13, "bold"),
+                bg="#f3e7d5",
+                fg="#2f1f17",
             ).pack(anchor="w", padx=12)
 
             tk.Label(
-                card, text=desc, font=("Arial", 10),
-                bg="#f3e7d5", fg="#4d362b", wraplength=420, justify="left"
+                card,
+                text=desc,
+                font=("Arial", 10),
+                bg="#f3e7d5",
+                fg="#4d362b",
+                wraplength=420,
+                justify="left",
             ).pack(anchor="w", padx=12, pady=(4, 10))
 
     def build_status_panel(self, parent):
@@ -266,7 +314,7 @@ class AfroDanceApp:
             font=("Arial", 10, "bold"),
             bg="#6c757d",
             fg="white",
-            command=self.manual_refresh_status
+            command=self.manual_refresh_status,
         ).pack(side="right")
 
         self.ready_summary = tk.Label(
@@ -276,7 +324,7 @@ class AfroDanceApp:
             justify="left",
             bg="#6a4330",
             fg="#f6e6ca",
-            anchor="w"
+            anchor="w",
         )
         self.ready_summary.pack(fill="x", pady=(0, 10))
 
@@ -286,7 +334,7 @@ class AfroDanceApp:
             font=("Consolas", 10),
             bg="#f8f0e3",
             fg="#1e1e1e",
-            height=18
+            height=18,
         )
         self.log_text.pack(fill="both", expand=True)
 
@@ -294,36 +342,32 @@ class AfroDanceApp:
         tk.Label(
             parent,
             text=(
-                "These tools are useful for testing, debugging, or examining the "
-                "generated motion data. They are not the main user flow."
+                "These tools use the currently selected dance from the dance library."
             ),
             font=("Arial", 10),
             justify="left",
             bg="#6a4330",
             fg="#f2e0c4",
-            wraplength=500
+            wraplength=500,
         ).pack(anchor="w", pady=(0, 10))
-
-        grid = tk.Frame(parent, bg="#6a4330")
-        grid.pack(fill="both", expand=True)
 
         tools = [
             (
-                "Reference Skeleton Viewer",
-                "View the saved instructor skeleton frame by frame.",
+                "Reference Pose Viewer",
+                "View the selected dance reference skeleton frame by frame.",
                 "#0d6efd",
-                lambda: self.run_script("main.py", "Reference skeleton viewer")
+                lambda: self.run_script("main.py", "Reference pose viewer"),
             ),
             (
-                "Advanced Overlay Analysis",
-                "Open the overlay analysis mode for deeper pose comparison.",
+                "Detailed Analysis Mode",
+                "Open the technical comparison mode for the selected dance.",
                 "#fd7e14",
-                lambda: self.run_script("overlay.py", "Advanced overlay analysis")
+                lambda: self.run_script("overlay.py", "Detailed analysis mode"),
             ),
         ]
 
         for title, desc, color, cmd in tools:
-            card = tk.Frame(grid, bg="#f3e7d5", bd=1, relief="solid")
+            card = tk.Frame(parent, bg="#f3e7d5", bd=1, relief="solid")
             card.pack(fill="x", pady=7)
 
             tk.Label(
@@ -331,7 +375,7 @@ class AfroDanceApp:
                 text=title,
                 font=("Arial", 13, "bold"),
                 bg="#f3e7d5",
-                fg="#2f1f17"
+                fg="#2f1f17",
             ).pack(anchor="w", padx=12, pady=(10, 2))
 
             tk.Label(
@@ -341,7 +385,7 @@ class AfroDanceApp:
                 bg="#f3e7d5",
                 fg="#4d362b",
                 wraplength=500,
-                justify="left"
+                justify="left",
             ).pack(anchor="w", padx=12, pady=(0, 8))
 
             tk.Button(
@@ -350,23 +394,33 @@ class AfroDanceApp:
                 font=("Arial", 10, "bold"),
                 bg=color,
                 fg="white",
-                command=cmd
+                command=cmd,
             ).pack(anchor="w", padx=12, pady=(0, 12))
 
     def build_files_panel(self, parent):
-        self.files_text = tk.Label(
-            parent,
-            text="Checking files...",
+        container = tk.Frame(parent, bg="#f3e7d5", relief="sunken", bd=1)
+        container.pack(fill="both", expand=True)
+
+        scrollbar = tk.Scrollbar(container)
+        scrollbar.pack(side="right", fill="y")
+
+        self.files_text = tk.Text(
+            container,
             font=("Arial", 10),
-            justify="left",
-            anchor="nw",
             bg="#f3e7d5",
             fg="#2f1f17",
+            wrap="word",
+            yscrollcommand=scrollbar.set,
             padx=12,
             pady=12,
-            relief="sunken"
+            relief="flat"
         )
-        self.files_text.pack(fill="both", expand=True)
+        self.files_text.pack(side="left", fill="both", expand=True)
+
+        scrollbar.config(command=self.files_text.yview)
+
+        self.files_text.insert("1.0", "Checking dance library...")
+        self.files_text.config(state="disabled")
 
     def build_footer(self):
         footer = tk.Frame(self.root, bg="#4f2f21", height=44)
@@ -375,10 +429,10 @@ class AfroDanceApp:
 
         tk.Label(
             footer,
-            text="Recommended use: Select video → Generate reference → Start live training",
+            text="Recommended use: Select dance → Generate selected reference → Start Live Training",
             font=("Arial", 10),
             bg="#4f2f21",
-            fg="#ead7b6"
+            fg="#ead7b6",
         ).pack(side="left", padx=16, pady=10)
 
     def make_big_button(self, parent, text, bg, command):
@@ -393,7 +447,7 @@ class AfroDanceApp:
             activeforeground="white",
             pady=12,
             relief="raised",
-            bd=2
+            bd=2,
         )
 
     # ---------------- LOGGING / STATUS ----------------
@@ -410,115 +464,222 @@ class AfroDanceApp:
         self.refresh_status(log_message=True)
         self.set_project_state("Status refreshed", "#9ad0a0")
 
-    def refresh_status(self, log_message=True):
-        self.data_dir.mkdir(parents=True, exist_ok=True)
-        self.references_dir.mkdir(parents=True, exist_ok=True)
+    def refresh_dance_menu(self):
+        dances = list_dances(self.repo_root)
+        menu = self.dance_menu["menu"]
+        menu.delete(0, "end")
+        self.dance_name_to_id = {}
 
-        video_ready = self.root_video.exists()
-        reference_ready = self.reference_json.exists()
+        if not dances:
+            self.dance_var.set("No dances found")
+            menu.add_command(label="No dances found", command=lambda: None)
+            return
+
+        current = get_selected_dance(self.repo_root)
+        selected_name = current["name"] if current else dances[0]["name"]
+
+        for dance in dances:
+            self.dance_name_to_id[dance["name"]] = dance["id"]
+            menu.add_command(
+                label=dance["name"],
+                command=lambda value=dance["name"]: self.on_dance_selected(value),
+            )
+
+        self.dance_var.set(selected_name)
+
+    def on_dance_selected(self, dance_name):
+        self.dance_var.set(dance_name)
+        dance_id = self.dance_name_to_id.get(dance_name)
+        if dance_id:
+            save_selected_dance(self.repo_root, dance_id)
+        self.refresh_status(log_message=False)
+
+    def refresh_status(self, log_message=True):
+        ensure_library_structure(self.repo_root)
+
+        self.refresh_dance_menu()
+        selected = get_selected_dance(self.repo_root)
+        dances = list_dances(self.repo_root)
+
+        if selected is None:
+            self.video_badge.config(text="Video: Missing", bg="#e8b4b4")
+            self.reference_badge.config(text="Reference: Missing", bg="#e8b4b4")
+            self.training_badge.config(text="Training: Not Ready", bg="#e8c98c")
+            self.ready_summary.config(text="No dances found in data/dances.")
+            self.dance_meta_label.config(text="No dances found in data/dances.")
+            self.files_text.config(text="No dances found in data/dances.")
+            self.btn_generate_reference.config(state="disabled")
+            self.btn_live_training.config(state="disabled")
+            return
+
+        video_ready = selected["video_exists"]
+        reference_ready = selected["reference_exists"]
         training_ready = video_ready and reference_ready
 
         self.video_badge.config(
             text=f"Video: {'Ready' if video_ready else 'Missing'}",
-            bg="#9ad0a0" if video_ready else "#e8b4b4"
+            bg="#9ad0a0" if video_ready else "#e8b4b4",
         )
         self.reference_badge.config(
             text=f"Reference: {'Ready' if reference_ready else 'Missing'}",
-            bg="#9ad0a0" if reference_ready else "#e8b4b4"
+            bg="#9ad0a0" if reference_ready else "#e8b4b4",
         )
         self.training_badge.config(
             text=f"Training: {'Ready' if training_ready else 'Not Ready'}",
-            bg="#9ad0a0" if training_ready else "#e8c98c"
+            bg="#9ad0a0" if training_ready else "#e8c98c",
         )
 
-        summary_lines = [
-            f"Video file ready: {'Yes' if video_ready else 'No'}",
-            f"Reference JSON ready: {'Yes' if reference_ready else 'No'}",
-            f"Live training ready: {'Yes' if training_ready else 'No'}",
-        ]
-        self.ready_summary.config(text="\n".join(summary_lines))
-
-        self.video_info_label.config(
-            text=str(self.root_video) if video_ready else "No root instructor video selected yet."
+        self.ready_summary.config(
+            text=(
+                f"Selected Dance: {selected['name']}\n"
+                f"Video file ready: {'Yes' if video_ready else 'No'}\n"
+                f"Reference JSON ready: {'Yes' if reference_ready else 'No'}\n"
+                f"Live training ready: {'Yes' if training_ready else 'No'}"
+            )
         )
 
-        files_text = (
-            f"Root instructor video:\n"
-            f"  {self.root_video}\n"
-            f"  Exists: {'Yes' if video_ready else 'No'}\n\n"
-            f"Reference JSON:\n"
-            f"  {self.reference_json}\n"
-            f"  Exists: {'Yes' if reference_ready else 'No'}\n\n"
-            f"Prototype video:\n"
-            f"  {self.prototype_video}\n"
-            f"  Exists: {'Yes' if self.prototype_video.exists() else 'No'}\n\n"
-            f"Available root scripts:\n"
-            f"  extract_reference.py: {'Yes' if (self.repo_root / 'extract_reference.py').exists() else 'No'}\n"
-            f"  live_score.py: {'Yes' if (self.repo_root / 'live_score.py').exists() else 'No'}\n"
-            f"  main.py: {'Yes' if (self.repo_root / 'main.py').exists() else 'No'}\n"
-            f"  overlay.py: {'Yes' if (self.repo_root / 'overlay.py').exists() else 'No'}"
+        self.dance_meta_label.config(
+            text=(
+                f"Name: {selected['name']}\n"
+                f"Region: {selected.get('region', 'Unknown')}\n"
+                f"Difficulty: {selected.get('difficulty', 'Unknown')}\n\n"
+                f"{selected.get('description', 'No description available.')}\n\n"
+                f"Folder: {selected['folder']}"
+            )
         )
-        self.files_text.config(text=files_text)
 
-        self.btn_live_training.config(
-            state=("normal" if training_ready else "disabled")
-        )
+        lines = ["Dance Library Files:"]
+        for dance in dances:
+            lines.append(f"\n{dance['name']} ({dance['id']})")
+            lines.append(f"  Video: {'Yes' if dance['video_exists'] else 'No'}")
+            lines.append(f"  Reference: {'Yes' if dance['reference_exists'] else 'No'}")
+            lines.append(f"  Ready: {'Yes' if dance['ready'] else 'No'}")
+        self.files_text.config(state="normal")
+        self.files_text.delete("1.0", "end")
+        self.files_text.insert("1.0", "\n".join(lines))
+        self.files_text.config(state="disabled")
+
+        self.btn_generate_reference.config(state="normal" if video_ready else "disabled")
+        self.btn_live_training.config(state="normal" if training_ready else "disabled")
 
         if log_message:
             self.log("Status refreshed successfully.")
 
     # ---------------- ACTIONS ----------------
 
-    def select_instructor_video(self):
+    def import_video_to_selected_dance(self):
+        selected = get_selected_dance(self.repo_root)
+        if selected is None:
+            messagebox.showerror("No Dance Selected", "No dance folders were found in data/dances.")
+            return
+
         file_path = filedialog.askopenfilename(
-            title="Select Instructor Video",
-            filetypes=[("Video Files", "*.mp4 *.avi *.mov *.mkv"), ("All Files", "*.*")]
+            title="Select Instructor Video for Selected Dance",
+            filetypes=[("Video Files", "*.mp4 *.avi *.mov *.mkv"), ("All Files", "*.*")],
         )
 
         if not file_path:
             return
 
         source = Path(file_path)
-        self.data_dir.mkdir(parents=True, exist_ok=True)
 
         try:
-            self.root_video.write_bytes(source.read_bytes())
-            self.log(f"Copied instructor video to {self.root_video}")
+            copy_into_selected_dance(self.repo_root, source)
+            self.log(f"Copied video into selected dance: {selected['id']}")
             self.refresh_status(log_message=False)
-            self.set_project_state("Video selected", "#9ad0a0")
+            self.set_project_state("Dance video imported", "#9ad0a0")
         except Exception as e:
-            messagebox.showerror("Video Copy Error", f"Failed to copy selected video:\n{e}")
-            self.log(f"ERROR copying selected video: {e}")
-            self.set_project_state("Video copy failed", "#e8b4b4")
+            messagebox.showerror("Video Copy Error", f"Failed to import video:\n{e}")
+            self.log(f"ERROR importing video: {e}")
+            self.set_project_state("Video import failed", "#e8b4b4")
 
-    def copy_default_video(self):
-        source = None
-        if self.prototype_video.exists():
-            source = self.prototype_video
-        elif self.root_video.exists():
-            source = self.root_video
+    def copy_prototype_to_selected_dance(self):
+        try:
+            selected = copy_prototype_to_selected(self.repo_root)
+            self.log(f"Copied prototype video into selected dance: {selected['id']}")
+            self.refresh_status(log_message=False)
+            self.set_project_state("Prototype copied to selected dance", "#9ad0a0")
+        except Exception as e:
+            messagebox.showerror("Prototype Copy Error", f"Failed to copy prototype video:\n{e}")
+            self.log(f"ERROR copying prototype video: {e}")
+            self.set_project_state("Prototype copy failed", "#e8b4b4")
 
-        if source is None:
-            messagebox.showerror("Missing Video", "No default prototype instructor video was found.")
-            self.log("ERROR: No prototype instructor video was found.")
-            self.set_project_state("No prototype video found", "#e8b4b4")
+    def generate_reference_for_selected_dance(self):
+        if self.process_running:
+            messagebox.showwarning("Busy", "Another project task is already running.")
             return
 
+        selected = get_selected_dance(self.repo_root)
+        if selected is None:
+            messagebox.showerror("No Dance Selected", "No dance folders were found in data/dances.")
+            return
+
+        self.process_running = True
+        self.set_project_state(f"Generating reference: {selected['name']}", "#e8c98c")
+        self.log(f"Preparing selected dance for extraction: {selected['id']}")
+
+        thread = threading.Thread(target=self._generate_reference_thread, daemon=True)
+        thread.start()
+
+    def _generate_reference_thread(self):
         try:
-            self.data_dir.mkdir(parents=True, exist_ok=True)
-            self.root_video.write_bytes(source.read_bytes())
-            self.log(f"Copied default instructor video to {self.root_video}")
-            self.refresh_status(log_message=False)
-            self.set_project_state("Prototype video copied", "#9ad0a0")
+            selected = prepare_selected_dance_for_extraction(self.repo_root)
+
+            result = subprocess.run(
+                [sys.executable, str(self.repo_root / "extract_reference.py")],
+                cwd=str(self.repo_root),
+                capture_output=True,
+                text=True,
+            )
+
+            if result.stdout.strip():
+                self.root.after(0, lambda: self.log(result.stdout.strip()))
+            if result.stderr.strip():
+                self.root.after(0, lambda: self.log(result.stderr.strip()))
+
+            if result.returncode != 0:
+                self.root.after(
+                    0,
+                    lambda: self._handle_generation_failure(
+                        f"Reference generation failed with code {result.returncode}."
+                    ),
+                )
+                return
+
+            stored = store_generated_reference_for_selected(self.repo_root)
+
+            self.root.after(
+                0,
+                lambda: self._handle_generation_success(stored["name"]),
+            )
         except Exception as e:
-            messagebox.showerror("Copy Error", f"Failed to copy prototype video:\n{e}")
-            self.log(f"ERROR copying prototype video: {e}")
-            self.set_project_state("Copy failed", "#e8b4b4")
+            self.root.after(0, lambda: self._handle_generation_failure(str(e)))
+
+    def _handle_generation_success(self, dance_name):
+        self.process_running = False
+        self.log(f"Reference saved for selected dance: {dance_name}")
+        self.refresh_status(log_message=False)
+        self.set_project_state("Selected dance reference generated", "#9ad0a0")
+        messagebox.showinfo("Reference Ready", f"Reference generated for {dance_name}.")
+
+    def _handle_generation_failure(self, error_message):
+        self.process_running = False
+        self.log(f"ERROR generating selected dance reference: {error_message}")
+        self.refresh_status(log_message=False)
+        self.set_project_state("Reference generation failed", "#e8b4b4")
+        messagebox.showerror("Reference Generation Error", error_message)
 
     def run_script(self, script_name, label):
         if self.process_running:
             messagebox.showwarning("Busy", "Another project task is already running.")
             return
+
+        selected = get_selected_dance(self.repo_root)
+        if selected is None:
+            messagebox.showerror("No Dance Selected", "No dances were found in data/dances.")
+            return
+
+        save_selected_dance(self.repo_root, selected["id"])
 
         script_path = self.repo_root / script_name
         if not script_path.exists():
@@ -528,12 +689,12 @@ class AfroDanceApp:
 
         self.process_running = True
         self.set_project_state(f"Running: {label}", "#e8c98c")
-        self.log(f"Launching {label}: {script_path}")
+        self.log(f"Launching {label} for selected dance: {selected['name']}")
 
         thread = threading.Thread(
             target=self._run_script_thread,
             args=(script_path, label),
-            daemon=True
+            daemon=True,
         )
         thread.start()
 
@@ -543,7 +704,7 @@ class AfroDanceApp:
                 [sys.executable, str(script_path)],
                 cwd=str(self.repo_root),
                 capture_output=True,
-                text=True
+                text=True,
             )
             self.root.after(0, lambda: self._handle_result(label, result))
         except Exception as e:
@@ -564,7 +725,7 @@ class AfroDanceApp:
             self.set_project_state(f"Issue in: {label}", "#e8b4b4")
             messagebox.showwarning(
                 "Finished With Issues",
-                f"{label} finished with return code {result.returncode}.\nCheck the log panel for details."
+                f"{label} finished with return code {result.returncode}.\nCheck the log panel for details.",
             )
 
         self.refresh_status(log_message=False)
