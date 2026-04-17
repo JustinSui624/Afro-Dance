@@ -1,6 +1,7 @@
 import json
 import time
 from pathlib import Path
+from dance_library import ensure_library_structure, get_selected_dance
 
 import cv2
 import numpy as np
@@ -57,9 +58,21 @@ def resolve_repo_root():
 
 
 def load_reference(repo_root: Path):
-    ref_path = repo_root / "data" / "references" / "instructor_reference.json"
+    ensure_library_structure(repo_root)
+    selected = get_selected_dance(repo_root)
+
+    if selected is None:
+        raise RuntimeError(
+            "No dances were found in data/dances. "
+            "Create at least one dance folder with instructor.mp4 and reference.json."
+        )
+
+    ref_path = selected["reference_path"]
     if not ref_path.exists():
-        raise RuntimeError(f"Missing reference file: {ref_path}. Run: python extract_reference.py")
+        raise RuntimeError(
+            f"Missing selected dance reference file: {ref_path}. "
+            "Generate reference data for the selected dance first."
+        )
 
     with open(ref_path, "r", encoding="utf-8") as f:
         ref = json.load(f)
@@ -74,6 +87,7 @@ def load_reference(repo_root: Path):
         float(ref["fps"]),
         ref_norm_xy,
         segments,
+        selected["name"],
     )
 
 
@@ -551,7 +565,7 @@ def show_session_summary(score_history, step_score_history):
 
 def main():
     repo_root = resolve_repo_root()
-    ref_vectors, angle_names, ref_fps, ref_norm_xy, segments = load_reference(repo_root)
+    ref_vectors, angle_names, ref_fps, ref_norm_xy, segments, dance_name = load_reference(repo_root)
 
     cap = cv2.VideoCapture(0)
     pose = mp_pose.Pose(min_detection_confidence=0.5, min_tracking_confidence=0.5)
@@ -573,7 +587,7 @@ def main():
     score_history = []
     step_score_history = {i: [] for i in range(len(segments))}
 
-    window = "AfroDance Learn - Live Training"
+    window = f"AfroDance Learn - Live Training - {dance_name}"
     cv2.namedWindow(window, cv2.WINDOW_NORMAL)
     cv2.resizeWindow(window, 1480, 840)
 
