@@ -3,6 +3,7 @@ import os
 import time
 from pathlib import Path
 from typing import Dict, List, Tuple, Optional
+from dance_library import ensure_library_structure, get_selected_dance
 
 import cv2
 import numpy as np
@@ -392,16 +393,24 @@ class DanceOverlayTrainer:
 
 def main():
     repo_root = Path(__file__).resolve().parent
-    reference_path = repo_root / "data" / "references" / "instructor_reference.json"
+    ensure_library_structure(repo_root)
+
+    selected = get_selected_dance(repo_root)
+    if selected is None:
+        print("No dances were found in data/dances.")
+        print("Create at least one dance folder with instructor.mp4 and reference.json.")
+        return
+
+    reference_path = selected["reference_path"]
 
     if not os.path.exists(reference_path):
         print(f"Reference not found at {reference_path}")
-        print("Please run extract_reference.py first")
+        print("Generate reference data for the selected dance first.")
         return
 
+    print(f"Opening Detailed Analysis Mode for: {selected['name']}")
     trainer = DanceOverlayTrainer(str(reference_path))
     trainer.run()
-
 
 if __name__ == "__main__":
     main()
