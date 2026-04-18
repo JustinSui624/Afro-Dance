@@ -10,23 +10,34 @@ def get_repo_root() -> Path:
     return Path(__file__).resolve().parent
 
 
+def get_library_base_dir(repo_root: Optional[Path] = None) -> Path:
+    return (repo_root or get_repo_root()) / "AfroDanceLearnPose" / "data"
+
+
 def get_data_dir(repo_root: Optional[Path] = None) -> Path:
+    # Active working data used by extraction scripts
     return (repo_root or get_repo_root()) / "data"
 
 
 def get_dances_dir(repo_root: Optional[Path] = None) -> Path:
-    return get_data_dir(repo_root) / "dances"
+    return get_library_base_dir(repo_root) / "dances"
 
 
 def get_current_dance_path(repo_root: Optional[Path] = None) -> Path:
-    return get_data_dir(repo_root) / "current_dance.json"
+    return get_library_base_dir(repo_root) / "current_dance.json"
 
 
 def ensure_library_structure(repo_root: Optional[Path] = None) -> None:
     repo_root = repo_root or get_repo_root()
+
+    # Root active working folders
     (repo_root / "data").mkdir(parents=True, exist_ok=True)
     (repo_root / "data" / "references").mkdir(parents=True, exist_ok=True)
-    (repo_root / "data" / "dances").mkdir(parents=True, exist_ok=True)
+
+    # Library storage folders inside AfroDanceLearnPose/data
+    base = get_library_base_dir(repo_root)
+    (base).mkdir(parents=True, exist_ok=True)
+    (base / "dances").mkdir(parents=True, exist_ok=True)
 
 
 def default_metadata(dance_id: str) -> Dict[str, Any]:
@@ -127,7 +138,7 @@ def copy_into_selected_dance(repo_root: Optional[Path], source_path: Path) -> Di
     repo_root = repo_root or get_repo_root()
     selected = get_selected_dance(repo_root)
     if selected is None:
-        raise RuntimeError("No dance folders were found in data/dances.")
+        raise RuntimeError("No dance folders were found in AfroDanceLearnPose/data/dances.")
 
     selected["folder"].mkdir(parents=True, exist_ok=True)
     shutil.copy2(source_path, selected["video_path"])
@@ -146,12 +157,12 @@ def prepare_selected_dance_for_extraction(repo_root: Optional[Path]) -> Dict[str
     repo_root = repo_root or get_repo_root()
     selected = get_selected_dance(repo_root)
     if selected is None:
-        raise RuntimeError("No dance folders were found in data/dances.")
+        raise RuntimeError("No dance folders were found in AfroDanceLearnPose/data/dances.")
     if not selected["video_exists"]:
         raise FileNotFoundError(f"Selected dance video is missing: {selected['video_path']}")
 
     ensure_library_structure(repo_root)
-    active_video = repo_root / "data" / "instructor.mp4"
+    active_video = get_data_dir(repo_root) / "instructor.mp4"
     shutil.copy2(selected["video_path"], active_video)
     return selected
 
@@ -160,9 +171,9 @@ def store_generated_reference_for_selected(repo_root: Optional[Path]) -> Dict[st
     repo_root = repo_root or get_repo_root()
     selected = get_selected_dance(repo_root)
     if selected is None:
-        raise RuntimeError("No dance folders were found in data/dances.")
+        raise RuntimeError("No dance folders were found in AfroDanceLearnPose/data/dances.")
 
-    generated = repo_root / "data" / "references" / "instructor_reference.json"
+    generated = get_data_dir(repo_root) / "references" / "instructor_reference.json"
     if not generated.exists():
         raise FileNotFoundError(f"Generated reference not found: {generated}")
 
