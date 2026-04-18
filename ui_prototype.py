@@ -507,7 +507,12 @@ class AfroDanceApp:
             self.training_badge.config(text="Training: Not Ready", bg="#e8c98c")
             self.ready_summary.config(text="No dances found in data/dances.")
             self.dance_meta_label.config(text="No dances found in data/dances.")
-            self.files_text.config(text="No dances found in data/dances.")
+
+            self.files_text.config(state="normal")
+            self.files_text.delete("1.0", "end")
+            self.files_text.insert("1.0", "No dances found in data/dances.")
+            self.files_text.config(state="disabled")
+
             self.btn_generate_reference.config(state="disabled")
             self.btn_live_training.config(state="disabled")
             return
